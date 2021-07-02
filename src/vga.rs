@@ -1,3 +1,4 @@
+use core::fmt;
 use core::fmt::Write;
 
 use spin::{Lazy, Mutex};
@@ -9,13 +10,31 @@ pub static GLOBAL_VGA_WRITER: Lazy<SyncVgaWriter> = Lazy::new(|| {
     SyncVgaWriter(Mutex::new({
         let color_code = ColorCode::new(Color::White, Color::Black);
         VgaWriter {
-            pos: 0,
+            column: 0,
             color_code,
-            buffer: [ScreenChar::empty(color_code); vga_mmap::BUFFER_SIZE],
+            buffer: [[ScreenChar::empty(color_code); vga_mmap::BUFFER_WIDTH];
+                vga_mmap::BUFFER_HEIGHT],
             memory: unsafe { &mut *vga_mmap::BUFFER_PTR },
         }
     }))
 });
+
+#[macro_export]
+macro_rules! print {
+    ($($arg:tt)*) => ($crate::vga::_print(format_args!($($arg)*)));
+}
+
+#[macro_export]
+macro_rules! println {
+    () => ($crate::print!("\n"));
+    ($($arg:tt)*) => ($crate::print!("{}\n", format_args!($($arg)*)));
+}
+
+#[doc(hidden)]
+pub fn _print(args: fmt::Arguments) {
+    let mut write = &*GLOBAL_VGA_WRITER;
+    write.write_fmt(args).unwrap();
+}
 
 pub struct SyncVgaWriter(Mutex<VgaWriter>);
 
@@ -33,8 +52,8 @@ impl Write for &'_ SyncVgaWriter {
 }
 
 pub struct VgaWriter {
-    /// Less than BUFFER_SIZE
-    pos: usize,
+    /// Less than BUFFER_WIDTH
+    column: usize,
     pub color_code: ColorCode,
     buffer: vga_mmap::Buffer,
     memory: *mut vga_mmap::Buffer,
@@ -49,21 +68,22 @@ impl VgaWriter {
     }
 
     fn new_line(&mut self) {
-        let new_pos_unchecked = (self.pos / vga_mmap::BUFFER_WIDTH + 1) * vga_mmap::BUFFER_WIDTH;
-
-        unsafe { self.buffer.get_unchecked_mut(self.pos..new_pos_unchecked) }
-            .fill(ScreenChar::empty(self.color_code));
-
-        self.pos = new_pos_unchecked % vga_mmap::BUFFER_SIZE;
+        self.buffer.copy_within(1..vga_mmap::BUFFER_HEIGHT, 0);
+        self.buffer[vga_mmap::BUFFER_HEIGHT - 1].fill(ScreenChar::empty(self.color_code));
+        self.column = 0;
     }
 
     fn write_byte(&mut self, byte: u8) {
-        *unsafe { self.buffer.get_unchecked_mut(self.pos) } = ScreenChar {
-            ascii_character: byte,
-            color_code: self.color_code,
-        };
+        if self.column >= vga_mmap::BUFFER_WIDTH {
+            self.new_line()
+        }
+        *unsafe { self.buffer[vga_mmap::BUFFER_HEIGHT - 1].get_unchecked_mut(self.column) } =
+            ScreenChar {
+                ascii_character: byte,
+                color_code: self.color_code,
+            };
 
-        self.pos = (self.pos + 1) % vga_mmap::BUFFER_SIZE
+        self.column += 1;
     }
 }
 
