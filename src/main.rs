@@ -14,3 +14,12 @@ pub extern "C" fn _start() -> ! {
 
     loop {}
 }
+
+#[panic_handler]
+#[allow(unreachable_code)]
+#[no_panic::no_panic]
+fn panic_handler(panic_info: &core::panic::PanicInfo) -> ! {
+    let mut writer = &*vga::GLOBAL_VGA_WRITER;
+    write!(&mut writer, "{}", panic_info).unwrap();
+    loop {}
+}

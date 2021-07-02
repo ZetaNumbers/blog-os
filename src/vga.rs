@@ -17,15 +17,6 @@ pub static GLOBAL_VGA_WRITER: Lazy<SyncVgaWriter> = Lazy::new(|| {
     }))
 });
 
-#[panic_handler]
-fn panic_handler(panic_info: &core::panic::PanicInfo) -> ! {
-    let mut writer = GLOBAL_VGA_WRITER.0.lock();
-    if let Err(e) = write!(&mut *writer, "{}", panic_info) {
-        let _ = write!(&mut *writer, "{}", e);
-    }
-    loop {}
-}
-
 pub struct SyncVgaWriter(Mutex<VgaWriter>);
 
 impl SyncVgaWriter {
