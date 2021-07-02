@@ -6,16 +6,13 @@
 
 use blog_os::println;
 
-fn main() {
-    println!("Hello, World!");
+#[test_case]
+fn test_println() {
+    println!("test_println output");
 }
 
 #[no_mangle]
-extern "C" fn _start() -> ! {
-    #[cfg(not(test))]
-    main();
-
-    #[cfg(test)]
+pub extern "C" fn _start() -> ! {
     test_main();
 
     loop {}
@@ -23,5 +20,5 @@ extern "C" fn _start() -> ! {
 
 #[panic_handler]
 fn panic_handler(info: &core::panic::PanicInfo) -> ! {
-    blog_os::panic::vga_panic_handler(info)
+    blog_os::panic::test_panic_handler(info)
 }

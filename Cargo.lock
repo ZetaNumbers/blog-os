@@ -3,12 +3,26 @@
 version = 3
 
 [[package]]
-name = "blog_os-kernel"
+name = "bit_field"
+version = "0.9.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ed8765909f9009617974ab6b7d332625b320b33c326b1e9321382ef1999b5d56"
+
+[[package]]
+name = "bitflags"
+version = "1.2.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "cf1de2fe8c75bc145a2f577add951f8134889b4795d47466a54a5c846d691693"
+
+[[package]]
+name = "blog_os"
 version = "0.1.0"
 dependencies = [
  "bootloader",
  "no-panic",
  "spin",
+ "uart_16550",
+ "x86_64",
 ]
 
 [[package]]
@@ -82,7 +96,34 @@ dependencies = [
 ]
 
 [[package]]
+name = "uart_16550"
+version = "0.2.15"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "65ad019480ef5ff8ffe66d6f6a259cd87cf317649481394981db1739d844f374"
+dependencies = [
+ "bitflags",
+ "x86_64",
+]
+
+[[package]]
 name = "unicode-xid"
 version = "0.2.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8ccb82d61f80a663efe1f787a51b16b5a51e3314d6ac365b08639f52387b33f3"
+
+[[package]]
+name = "volatile"
+version = "0.4.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e4c2dbd44eb8b53973357e6e207e370f0c1059990df850aca1eca8947cf464f0"
+
+[[package]]
+name = "x86_64"
+version = "0.14.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b7c54a17492391c594753ce2a180142bec7ad2876543565c2a08aa11cddef251"
+dependencies = [
+ "bit_field",
+ "bitflags",
+ "volatile",
+]

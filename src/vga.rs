@@ -67,6 +67,12 @@ impl VgaWriter {
         unsafe { self.memory.write_volatile(self.buffer) };
     }
 
+    /// Volatile load VGA text buffer
+    #[cfg(test)]
+    fn load(&mut self) {
+        self.buffer = unsafe { self.memory.read_volatile() };
+    }
+
     fn new_line(&mut self) {
         self.buffer.copy_within(1..vga_mmap::BUFFER_HEIGHT, 0);
         self.buffer[vga_mmap::BUFFER_HEIGHT - 1].fill(ScreenChar::empty(self.color_code));
@@ -104,4 +110,41 @@ impl Write for VgaWriter {
         self.flush();
         Ok(())
     }
+}
+
+#[test_case]
+fn test_println_simple() {
+    println!("test_println_simple output");
+}
+
+#[test_case]
+fn test_println_many() {
+    for _ in 0..200 {
+        println!("test_println_many output");
+    }
+}
+
+#[test_case]
+fn test_println_output() {
+    let color_code = ColorCode::new(Color::White, Color::Black);
+    GLOBAL_VGA_WRITER.set_color_code(color_code);
+    let s = "Some test string that fits on a single line";
+    println!("\n{}", s);
+
+    let mut writer_guard = GLOBAL_VGA_WRITER.0.lock();
+    let mut buf = [[ScreenChar::empty(color_code); vga_mmap::BUFFER_WIDTH]; 2];
+
+    for (i, o) in s
+        .bytes()
+        .map(|b| ScreenChar {
+            ascii_character: b,
+            color_code,
+        })
+        .zip(buf.iter_mut().flatten())
+    {
+        *o = i;
+    }
+
+    writer_guard.load();
+    assert_eq!(writer_guard.buffer[vga_mmap::BUFFER_HEIGHT - 2..], buf)
 }
