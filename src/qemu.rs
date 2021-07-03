@@ -13,5 +13,5 @@ pub fn exit(exit_code: ExitCode) -> ! {
         port.write(exit_code as u32);
     }
 
-    loop {}
+    crate::hlt_loop()
 }

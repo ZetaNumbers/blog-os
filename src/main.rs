@@ -20,7 +20,7 @@ extern "C" fn _start() -> ! {
     #[cfg(test)]
     test_main();
 
-    loop {}
+    blog_os::hlt_loop()
 }
 
 #[panic_handler]

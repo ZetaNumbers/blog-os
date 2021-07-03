@@ -1,10 +1,7 @@
 #![no_std]
 #![no_main]
 
-use blog_os::{
-    qemu::{exit, ExitCode},
-    serial_print, serial_println,
-};
+use blog_os::{qemu, serial_print, serial_println};
 
 fn should_fail() {
     serial_print!("should_panic::should_fail...\t");
@@ -15,8 +12,7 @@ fn should_fail() {
 pub extern "C" fn _start() -> ! {
     should_fail();
     serial_println!("[test did not panic]");
-    exit(ExitCode::Failed);
-    loop {}
+    qemu::exit(qemu::ExitCode::Failed)
 }
 
 #[panic_handler]

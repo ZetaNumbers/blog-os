@@ -1,6 +1,5 @@
 use spin::Lazy;
 use x86_64::{
-    instructions::segmentation::set_cs,
     structures::{
         gdt::{Descriptor, GlobalDescriptorTable, SegmentSelector},
         tss::TaskStateSegment,

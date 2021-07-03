@@ -23,7 +23,7 @@ pub fn test_runner(tests: &[&dyn Testable]) {
     for test in tests {
         test.run();
     }
-    exit(ExitCode::Success);
+    exit(ExitCode::Success)
 }
 
 #[test_case]

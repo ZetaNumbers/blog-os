@@ -2,6 +2,7 @@ use core::fmt;
 use core::fmt::Write;
 
 use spin::{Lazy, Mutex};
+use x86_64::instructions::interrupts::without_interrupts;
 
 use crate::memory_maps::vga as vga_mmap;
 use crate::types::vga::*;
@@ -47,7 +48,7 @@ impl SyncVgaWriter {
 
 impl Write for &'_ SyncVgaWriter {
     fn write_str(&mut self, s: &str) -> core::fmt::Result {
-        self.0.lock().write_str(s)
+        without_interrupts(|| self.0.lock().write_str(s))
     }
 }
 
@@ -131,7 +132,6 @@ fn test_println_output() {
     let s = "Some test string that fits on a single line";
     println!("\n{}", s);
 
-    let mut writer_guard = GLOBAL_VGA_WRITER.0.lock();
     let mut buf = [[ScreenChar::empty(color_code); vga_mmap::BUFFER_WIDTH]; 2];
 
     for (i, o) in s
@@ -145,6 +145,9 @@ fn test_println_output() {
         *o = i;
     }
 
-    writer_guard.load();
-    assert_eq!(writer_guard.buffer[vga_mmap::BUFFER_HEIGHT - 2..], buf)
+    without_interrupts(|| {
+        let mut writer_guard = GLOBAL_VGA_WRITER.0.lock();
+        writer_guard.load();
+        assert_eq!(writer_guard.buffer[vga_mmap::BUFFER_HEIGHT - 2..], buf)
+    })
 }
