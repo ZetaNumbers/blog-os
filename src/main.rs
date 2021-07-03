@@ -12,6 +12,8 @@ fn main() {
 
 #[no_mangle]
 extern "C" fn _start() -> ! {
+    blog_os::init();
+
     #[cfg(not(test))]
     main();
 

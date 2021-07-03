@@ -21,6 +21,7 @@ dependencies = [
  "bootloader",
  "spin",
  "uart_16550",
+ "volatile",
  "x86_64",
 ]
 
