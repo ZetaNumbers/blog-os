@@ -40,7 +40,10 @@ pub fn _print(args: fmt::Arguments) {
 pub struct SyncVgaWriter(Mutex<VgaWriter>);
 
 impl SyncVgaWriter {
-    #[allow(dead_code)]
+    pub fn color_code(&self) -> ColorCode {
+        self.0.lock().color_code
+    }
+
     pub fn set_color_code(&self, cc: ColorCode) {
         self.0.lock().color_code = cc;
     }

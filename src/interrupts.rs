@@ -1,9 +1,12 @@
 use crate::{gdt, print, println, util::WildcardTry};
-use core::panic;
+use core::{fmt::Debug, panic};
 use pc_keyboard::{layouts, HandleControl, Keyboard, ScancodeSet1};
 use pic8259::ChainedPics;
 use spin::Lazy;
-use x86_64::structures::idt::{InterruptDescriptorTable, InterruptStackFrame};
+use x86_64::{
+    structures::idt::{InterruptDescriptorTable, InterruptStackFrame, PageFaultErrorCode},
+    VirtAddr,
+};
 
 pub fn init_idt() {
     IDT.load();
@@ -24,13 +27,22 @@ static IDT: Lazy<InterruptDescriptorTable> = Lazy::new(|| {
             .set_handler_fn(double_fault_handler)
             .set_stack_index(gdt::DOUBLE_FAULT_IST_INDEX);
     }
+    idt.page_fault.set_handler_fn(page_fault_handler);
     idt[InterruptIndex::Timer.as_usize()].set_handler_fn(timer_interrupt_handler);
     idt[InterruptIndex::Keyboard.as_usize()].set_handler_fn(keyboard_interrupt_handler);
     idt
 });
 
 extern "x86-interrupt" fn breakpoint_handler(stack_frame: InterruptStackFrame) {
-    println!("EXCEPTION: BREAKPOINT\n{:#?}", stack_frame);
+    println!(
+        "{:#?}",
+        CpuExceptionError {
+            exception: "breakpoint",
+            stack_frame,
+            optional_error_code: (),
+            additional_info: ()
+        }
+    );
 }
 
 #[test_case]
@@ -40,9 +52,37 @@ fn test_breakpoint_exception() {
 
 extern "x86-interrupt" fn double_fault_handler(
     stack_frame: InterruptStackFrame,
-    _error_code: u64,
+    error_code: u64,
 ) -> ! {
-    panic!("EXCEPTION: DOUBLE FAULT\n{:#?}", stack_frame);
+    panic!(
+        "{:#?}",
+        CpuExceptionError {
+            exception: "double fault",
+            stack_frame,
+            optional_error_code: error_code,
+            additional_info: ()
+        }
+    );
+}
+
+extern "x86-interrupt" fn page_fault_handler(
+    stack_frame: InterruptStackFrame,
+    error_code: PageFaultErrorCode,
+) {
+    use x86_64::registers::control::Cr2;
+
+    panic!(
+        "{:#?}",
+        CpuExceptionError {
+            exception: "page fault",
+            optional_error_code: error_code,
+            stack_frame,
+            additional_info: AccessedAddress(Cr2::read())
+        }
+    );
+
+    #[derive(Debug)]
+    struct AccessedAddress(VirtAddr);
 }
 
 pub const PIC_1_OFFSET: u8 = 32;
@@ -98,4 +138,12 @@ extern "x86-interrupt" fn keyboard_interrupt_handler(_stack_frame: InterruptStac
                 HandleControl::Ignore,
             ))
         });
+}
+
+#[derive(Debug)]
+struct CpuExceptionError<E: Debug, I: Debug> {
+    exception: &'static str,
+    stack_frame: InterruptStackFrame,
+    optional_error_code: E,
+    additional_info: I,
 }
