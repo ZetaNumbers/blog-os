@@ -1,12 +1,9 @@
-use crate::{
-    qemu, serial_println,
-    types::vga::{Color, ColorCode},
-    vga,
-};
+use crate::{qemu, serial_println, vga::GLOBAL_VGA_WRITER};
+use vga::colors::{Color16, TextModeColor};
 
 #[allow(unreachable_code)]
 pub fn vga_panic_handler(panic_info: &core::panic::PanicInfo) -> ! {
-    vga::GLOBAL_VGA_WRITER.set_color_code(ColorCode::new(Color::LightRed, Color::Black));
+    GLOBAL_VGA_WRITER.set_color_code(TextModeColor::new(Color16::LightRed, Color16::Black));
     crate::print!("{}", panic_info);
     crate::hlt_loop()
 }

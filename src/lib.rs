@@ -6,12 +6,10 @@
 
 pub mod gdt;
 pub mod interrupts;
-mod memory_maps;
 pub mod panic;
 pub mod qemu;
 pub mod serial;
 pub mod testable;
-mod types;
 mod util;
 pub mod vga;
 

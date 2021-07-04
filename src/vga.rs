@@ -1,21 +1,22 @@
-use core::fmt;
 use core::fmt::Write;
-
 use spin::{Lazy, Mutex};
+use vga::{
+    colors::{Color16, TextModeColor},
+    writers::{Screen, ScreenCharacter, Text80x25, TextWriter},
+};
 use x86_64::instructions::interrupts::without_interrupts;
-
-use crate::memory_maps::vga as vga_mmap;
-use crate::types::vga::*;
 
 pub static GLOBAL_VGA_WRITER: Lazy<SyncVgaWriter> = Lazy::new(|| {
     SyncVgaWriter(Mutex::new({
-        let color_code = ColorCode::new(Color::White, Color::Black);
+        let color_code = TextModeColor::new(Color16::Yellow, Color16::Black);
+        let text_mode = TextMode::new();
+        text_mode.clear_screen();
+
         VgaWriter {
             column: 0,
             color_code,
-            buffer: [[ScreenChar::empty(color_code); vga_mmap::BUFFER_WIDTH];
-                vga_mmap::BUFFER_HEIGHT],
-            memory: unsafe { &mut *vga_mmap::BUFFER_PTR },
+            buffer: [[ScreenCharacter::new(b' ', color_code); TextMode::WIDTH]; TextMode::HEIGHT],
+            text_mode,
         }
     }))
 });
@@ -32,7 +33,7 @@ macro_rules! println {
 }
 
 #[doc(hidden)]
-pub fn _print(args: fmt::Arguments) {
+pub fn _print(args: core::fmt::Arguments) {
     let mut write = &*GLOBAL_VGA_WRITER;
     write.write_fmt(args).unwrap();
 }
@@ -40,12 +41,12 @@ pub fn _print(args: fmt::Arguments) {
 pub struct SyncVgaWriter(Mutex<VgaWriter>);
 
 impl SyncVgaWriter {
-    pub fn color_code(&self) -> ColorCode {
-        self.0.lock().color_code
+    pub fn color_code(&self) -> TextModeColor {
+        without_interrupts(|| self.0.lock().color_code)
     }
 
-    pub fn set_color_code(&self, cc: ColorCode) {
-        self.0.lock().color_code = cc;
+    pub fn set_color_code(&self, color: TextModeColor) {
+        without_interrupts(|| self.0.lock().color_code = color);
     }
 }
 
@@ -55,44 +56,41 @@ impl Write for &'_ SyncVgaWriter {
     }
 }
 
+type TextMode = Text80x25;
+
 pub struct VgaWriter {
-    /// Less than BUFFER_WIDTH
+    /// Less than Screen::WIDTH
     column: usize,
-    pub color_code: ColorCode,
-    buffer: vga_mmap::Buffer,
-    memory: *mut vga_mmap::Buffer,
+    pub color_code: TextModeColor,
+    buffer: Buffer,
+    text_mode: TextMode,
 }
 
-unsafe impl Send for VgaWriter {}
-unsafe impl Sync for VgaWriter {}
+pub type Buffer = [[ScreenCharacter; TextMode::WIDTH]; TextMode::HEIGHT];
 
 impl VgaWriter {
     fn flush(&mut self) {
-        unsafe { self.memory.write_volatile(self.buffer) };
+        let (_guard, frame_buffer) = self.text_mode.get_frame_buffer();
+        unsafe { (frame_buffer as *mut Buffer).write_volatile(self.buffer) };
     }
 
-    /// Volatile load VGA text buffer
-    #[cfg(test)]
     fn load(&mut self) {
-        self.buffer = unsafe { self.memory.read_volatile() };
+        let (_guard, frame_buffer) = self.text_mode.get_frame_buffer();
+        self.buffer = unsafe { (frame_buffer as *mut Buffer).read_volatile() };
     }
 
     fn new_line(&mut self) {
-        self.buffer.copy_within(1..vga_mmap::BUFFER_HEIGHT, 0);
-        self.buffer[vga_mmap::BUFFER_HEIGHT - 1].fill(ScreenChar::empty(self.color_code));
+        self.buffer.copy_within(1..TextMode::HEIGHT, 0);
+        self.buffer[TextMode::HEIGHT - 1].fill(ScreenCharacter::new(b' ', self.color_code));
         self.column = 0;
     }
 
     fn write_byte(&mut self, byte: u8) {
-        if self.column >= vga_mmap::BUFFER_WIDTH {
+        if self.column >= TextMode::WIDTH {
             self.new_line()
         }
-        *unsafe { self.buffer[vga_mmap::BUFFER_HEIGHT - 1].get_unchecked_mut(self.column) } =
-            ScreenChar {
-                ascii_character: byte,
-                color_code: self.color_code,
-            };
-
+        *unsafe { self.buffer[TextMode::HEIGHT - 1].get_unchecked_mut(self.column) } =
+            ScreenCharacter::new(byte, self.color_code);
         self.column += 1;
     }
 }
@@ -130,19 +128,16 @@ fn test_println_many() {
 
 #[test_case]
 fn test_println_output() {
-    let color_code = ColorCode::new(Color::White, Color::Black);
+    let color_code = TextModeColor::new(Color16::White, Color16::Black);
     GLOBAL_VGA_WRITER.set_color_code(color_code);
     let s = "Some test string that fits on a single line";
     println!("\n{}", s);
 
-    let mut buf = [[ScreenChar::empty(color_code); vga_mmap::BUFFER_WIDTH]; 2];
+    let mut buf = [[ScreenCharacter::new(b' ', color_code); TextMode::WIDTH]; 2];
 
     for (i, o) in s
         .bytes()
-        .map(|b| ScreenChar {
-            ascii_character: b,
-            color_code,
-        })
+        .map(|byte| ScreenCharacter::new(byte, color_code))
         .zip(buf.iter_mut().flatten())
     {
         *o = i;
@@ -151,6 +146,6 @@ fn test_println_output() {
     without_interrupts(|| {
         let mut writer_guard = GLOBAL_VGA_WRITER.0.lock();
         writer_guard.load();
-        assert_eq!(writer_guard.buffer[vga_mmap::BUFFER_HEIGHT - 2..], buf)
+        assert_eq!(writer_guard.buffer[TextMode::HEIGHT - 2..], buf)
     })
 }
